@@ -1,0 +1,92 @@
+{
+  "name": "qfcar",
+  "version": "0.1.35",
+  "description": "月壤车",
+  "productName": "月壤车",
+  "scripts": {
+    "dev": "electron .",
+    "dev:web": "concurrently -k -n renderer,electron \"yarn --cwd renderer dev --port 3000\" \"wait-on http://localhost:3000 && electron . --entry http://localhost:3000\"",
+    "dev:unity": "electron . --unity",
+    "build:renderer": "yarn --cwd renderer build",
+    "sync:renderer": "node scripts/sync-renderer-dist.js",
+    "build": "node scripts/electron-build.js",
+    "package:dir": "electron-builder --dir",
+    "package": "electron-builder",
+    "ele-s": "yarn dev",
+    "ele-b": "yarn build"
+  },
+  "keywords": [],
+  "author": "Zilmill",
+  "license": "ISC",
+  "dependencies": {
+    "electron-updater": "^5.0.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "electron": "18.0.2",
+    "electron-builder": "^23.1.0",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "com.shv.qfcar",
+    "productName": "月壤车",
+    "executableName": "qfcar",
+    "copyright": "@2025 shv",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": ""
+      }
+    ],
+    "asar": true,
+    "nsis": {
+      "artifactName": "月壤车 .${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "win": {
+      "executableName": "qfcar",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "category": "Education",
+      "target": [
+        "AppImage"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "kylin.electron.json",
+        "to": "."
+      },
+      {
+        "from": "WebGLBuild",
+        "to": "WebGLBuild"
+      }
+    ],
+    "files": [
+      "electron",
+      "node_modules/**/*",
+      "index.html",
+      "assets"
+    ],
+    "afterSign": "builder/afterSign.js"
+  },
+  "main": "electron/main.js",
+  "render_version": "0.1.35"
+}

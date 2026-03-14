@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IO Key Test</title>
+  </head>
+  <body>
+    <h1>IO Key Test</h1>
+    <pre id="log"></pre>
+    <script>
+      const el = document.getElementById('log');
+      function log(s) {
+        console.log(s);
+        el.textContent = (el.textContent + s + '\n').slice(-5000);
+      }
+      window.addEventListener('keydown', (e) => log(`keydown key=${e.key} code=${e.code}`));
+      window.addEventListener('keyup', (e) => log(`keyup   key=${e.key} code=${e.code}`));
+      log('ready');
+      window.focus();
+    </script>
+  </body>
+</html>
+
