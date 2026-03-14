@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Relay Trigger Test</title>
+  </head>
+  <body>
+    <h1>Relay Trigger Test</h1>
+    <p>页面加载 1 秒后会 console.log("IO_RELAY:PULSE")</p>
+    <script>
+      setTimeout(() => {
+        console.log('IO_RELAY:PULSE');
+      }, 1000);
+    </script>
+  </body>
+</html>
+

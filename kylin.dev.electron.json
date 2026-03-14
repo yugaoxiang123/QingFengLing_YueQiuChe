@@ -1,0 +1,26 @@
+{
+  "window_mode": "kiosk",
+  "entry": "./WebGLBuild/index.html",
+  "local_server_root": "./WebGLBuild",
+  "local_server_port": 17888,
+  "chromium_args": {
+    "use-angle": "gl",
+    "ignore-gpu-blocklist": true
+  },
+  "io_terminal": {
+    "enabled": true,
+    "host": "192.168.1.95",
+    "port": 8234,
+    "poll_interval_ms": 50,
+    "connect_timeout_ms": 1500,
+    "inject_mode": "sendInputEvent"
+  },
+  "io_relay": {
+    "enabled": true,
+    "host": "192.168.1.95",
+    "port": 8234,
+    "connect_timeout_ms": 1500,
+    "pulse_ms": 10000,
+    "trigger_text": "IO_RELAY:PULSE"
+  }
+}
