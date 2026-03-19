@@ -181,8 +181,6 @@ async function resolveEntry(config) {
     const rel = path.relative(serverRoot, filePath);
     const urlPath = rel.startsWith('..') ? 'index.html' : rel.replace(/\\/g, '/');
     const url = `http://127.0.0.1:${port}/${urlPath}`;
-    console.log('[server] root=', serverRoot);
-    console.log('[server] url =', url);
     return url;
   }
 
@@ -190,6 +188,7 @@ async function resolveEntry(config) {
 }
 
 function logAutoUpdateOverlay(message) {
+  return;
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return;
   const text = '[update] ' + new Date().toISOString().slice(11, 19) + ' ' + String(message || '');
@@ -237,19 +236,14 @@ function setupAutoUpdate(config) {
 
   autoUpdater.on('error', (e) => {
     console.error('[autoUpdater] error', e);
-    const msg = e && e.message ? 'error: ' + e.message : 'error: ' + String(e);
-    logAutoUpdateOverlay(msg);
   });
 
   autoUpdater.on('update-available', (info) => {
-    console.log('[autoUpdater] update-available', info && info.version);
-    const v = info && info.version ? String(info.version) : '';
-    logAutoUpdateOverlay('发现新版本: ' + v);
+    // no UI/log overlay
   });
 
   autoUpdater.on('update-not-available', () => {
-    console.log('[autoUpdater] update-not-available');
-    logAutoUpdateOverlay('当前已是最新版本');
+    // no UI/log overlay
   });
 
   autoUpdater.on('download-progress', (p) => {
@@ -257,11 +251,9 @@ function setupAutoUpdate(config) {
     if (!win) return;
     const percent = Math.max(0, Math.min(100, Math.floor(Number(p.percent || 0))));
     win.setProgressBar(percent / 100);
-    logAutoUpdateOverlay('下载更新中: ' + percent + '%');
   });
 
   autoUpdater.on('update-downloaded', async () => {
-    logAutoUpdateOverlay('更新已下载，正在重启安装');
     autoUpdater.quitAndInstall(true, true);
   });
 
@@ -291,10 +283,7 @@ function createMainWindow(config, entry, args) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
 
-  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    const lvl = typeof level === 'number' ? level : 0;
-    const head = lvl === 3 ? 'ERROR' : lvl === 2 ? 'WARN' : 'LOG';
-    console.log(`[web] ${head} ${sourceId}:${line} ${message}`);
+  win.webContents.on('console-message', (_event, _level, message) => {
     tryHandleRelayTriggerFromConsole(String(message || ''));
   });
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
@@ -325,31 +314,17 @@ function createMainWindow(config, entry, args) {
   return win;
 }
 
-function logToDevtools(data) {
-  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];
-  if (!win || win.isDestroyed()) return;
-  const wc = win.webContents;
-  const payload = JSON.stringify(data);
-  const js = `console.log("[io-relay]", ${JSON.stringify(payload)});`;
-  try {
-    wc.executeJavaScript(js, true);
-  } catch {}
+function logToDevtools(_data) {
+  // no-op: remove verbose logging
 }
 
-function logRelay(event, extra) {
-  const data = {
-    ts: Date.now(),
-    event,
-    ...(extra && typeof extra === 'object' ? extra : {})
-  };
-  console.log('[io-relay]', data);
-  logToDevtools(data);
+function logRelay(_event, _extra) {
+  // no-op: remove verbose logging
 }
 
 function setupIORelay(config) {
   const conf = config && typeof config === 'object' ? config.io_relay : null;
   if (!conf || conf.enabled !== true) {
-    if (conf) logRelay('disabled', conf);
     return;
   }
   ioRelayTriggerText = String(conf.trigger_text || 'IO_RELAY:PULSE');
@@ -368,14 +343,13 @@ function setupIORelay(config) {
       send: (frame) => ioTerminalClient.send(frame),
       frames: { RELAY_CLOSE, RELAY_OPEN }
     };
-    logRelay('sender', { mode: 'reuse-io-terminal' });
   } else {
     ioRelay = createIORelay({
       host: String(conf.host || '192.168.1.95'),
       port: Number(conf.port || 8234),
       connectTimeoutMs: Number(conf.connect_timeout_ms || 1500),
-      onStatus: (s) => logRelay('socket-status', s),
-      onTx: (t) => logRelay('tx', t)
+      onStatus: () => {},
+      onTx: () => {}
     });
     ioRelay.start();
     app.once('before-quit', () => {
@@ -384,20 +358,12 @@ function setupIORelay(config) {
       } catch {}
     });
   }
-
-  logRelay('ready', {
-    host: String(conf.host || '192.168.1.95'),
-    port: Number(conf.port || 8234),
-    pulse_ms: Number(conf.pulse_ms || 10000),
-    trigger_text: ioRelayTriggerText
-  });
 }
 
 function pulseRelay(pulseMs) {
   if (!ioRelay) return;
   const ms = Math.max(50, Number(pulseMs || 10000));
   const ok = ioRelay.send(RELAY_CLOSE);
-  logRelay('close', { ok, pulse_ms: ms });
 
   if (ioRelayPulseTimer) {
     clearTimeout(ioRelayPulseTimer);
@@ -406,7 +372,6 @@ function pulseRelay(pulseMs) {
   ioRelayPulseTimer = setTimeout(() => {
     ioRelayPulseTimer = null;
     const ok2 = ioRelay.send(RELAY_OPEN);
-    logRelay('open', { ok: ok2 });
   }, ms);
 }
 
@@ -416,7 +381,6 @@ function tryHandleRelayTriggerFromConsole(message) {
   if (m !== ioRelayTriggerText) return;
   const cfg = lastConfig && lastConfig.io_relay ? lastConfig.io_relay : null;
   const pulseMs = cfg ? cfg.pulse_ms : 10000;
-  logRelay('trigger', { trigger_text: ioRelayTriggerText, message: m });
   pulseRelay(pulseMs);
 }
 
@@ -466,7 +430,7 @@ async function main() {
 
     applyChromiumArgs(config.chromium_args);
     if (!app.isPackaged) {
-      console.log('[chromium] use-angle=', app.commandLine.getSwitchValue('use-angle'));
+      // no verbose logging
     }
 
     const gotLock = app.requestSingleInstanceLock();
@@ -541,15 +505,6 @@ function setupIOTerminal(config) {
   const conf = config && typeof config === 'object' ? config.io_terminal : null;
   if (!conf) return;
   if (conf.enabled !== true) {
-    try {
-      console.log('[io-terminal] disabled', {
-        enabled: conf.enabled,
-        host: conf.host,
-        port: conf.port,
-        poll_interval_ms: conf.poll_interval_ms,
-        inject_mode: conf.inject_mode
-      });
-    } catch {}
     return;
   }
 
@@ -563,33 +518,17 @@ function setupIOTerminal(config) {
     return all && all[0] ? all[0] : null;
   }
 
-  function logToDevtools(data) {
-    const win = getWin();
-    if (!win || win.isDestroyed()) return;
-    const wc = win.webContents;
-    const payload = JSON.stringify(data);
-    const js = `console.log("[io-terminal]", ${JSON.stringify(payload)});`;
-    try {
-      wc.executeJavaScript(js, true);
-    } catch {}
+  function logToDevtools(_data) {
+    // no-op: prevent long-running console injection/log growth
   }
 
-  function logIO(event, extra) {
-    const data = {
-      ts: Date.now(),
-      event,
-      ...(extra && typeof extra === 'object' ? extra : {})
-    };
-    console.log('[io-terminal]', data);
-    logToDevtools(data);
+  function logIO(_event, _extra) {
+    // no-op: keep hardware input behavior, remove verbose logging
   }
 
   function injectKey(i, down) {
     const win = getWin();
-    if (!win || win.isDestroyed()) {
-      logIO('inject-skip', { reason: 'no-window', index: i, down });
-      return;
-    }
+    if (!win || win.isDestroyed()) return;
     const wc = win.webContents;
     try {
       wc.focus();
@@ -598,49 +537,25 @@ function setupIOTerminal(config) {
     if (conf.inject_mode === 'domEvent') {
       const key = domKeys[i] || '';
       const type = down ? 'keydown' : 'keyup';
-      logIO('inject-attempt', { mode: 'domEvent', index: i, keyLabel: keyLabels[i], key, type });
       const js = `(function(){try{const e=new KeyboardEvent(${JSON.stringify(type)},{key:${JSON.stringify(
         key
       )},bubbles:true});window.dispatchEvent(e);document.dispatchEvent(e);}catch{}})();`;
       try {
         wc.executeJavaScript(js, true);
-        logIO('inject-done', { mode: 'domEvent', index: i, keyLabel: keyLabels[i], key, type });
       } catch (e) {
-        logIO('inject-error', { mode: 'domEvent', index: i, keyLabel: keyLabels[i], key, type, error: String(e) });
+        // ignore injection errors
       }
       return;
     }
 
     const keyCode = keyCodes[i];
     if (!keyCode) {
-      logIO('inject-skip', { reason: 'no-keycode', index: i, down });
       return;
     }
     try {
-      logIO('inject-attempt', {
-        mode: 'sendInputEvent',
-        index: i,
-        keyLabel: keyLabels[i],
-        keyCode,
-        type: down ? 'keyDown' : 'keyUp'
-      });
       wc.sendInputEvent({ type: down ? 'keyDown' : 'keyUp', keyCode });
-      logIO('inject-done', {
-        mode: 'sendInputEvent',
-        index: i,
-        keyLabel: keyLabels[i],
-        keyCode,
-        type: down ? 'keyDown' : 'keyUp'
-      });
     } catch (e) {
-      logIO('inject-error', {
-        mode: 'sendInputEvent',
-        index: i,
-        keyLabel: keyLabels[i],
-        keyCode,
-        type: down ? 'keyDown' : 'keyUp',
-        error: String(e)
-      });
+      // ignore injection errors
     }
   }
 
@@ -656,26 +571,8 @@ function setupIOTerminal(config) {
     port: Number(conf.port || 8234),
     pollIntervalMs: Number(conf.poll_interval_ms || 50),
     connectTimeoutMs: Number(conf.connect_timeout_ms || 1500),
-    onStatus: (s) => {
-      logIO('socket-status', s);
-    },
+    onStatus: () => {},
     onInputs: (inputs, prev) => {
-      const changes = [];
-      for (let i = 0; i < 6; i++) {
-        const curr = Boolean(inputs[i]);
-        const before = prev ? Boolean(prev[i]) : false;
-        if (curr === before) continue;
-        changes.push({
-          index: i,
-          keyLabel: keyLabels[i],
-          keyCode: keyCodes[i],
-          from: before,
-          to: curr
-        });
-      }
-      if (changes.length) {
-        logIO('signal-change', { inputs, prev, changes });
-      }
       for (let i = 0; i < 6; i++) {
         const curr = Boolean(inputs[i]);
         const before = prev ? Boolean(prev[i]) : false;
@@ -685,13 +582,6 @@ function setupIOTerminal(config) {
     }
   });
 
-  logIO('io-start', {
-    host: String(conf.host || '192.168.1.95'),
-    port: Number(conf.port || 8234),
-    poll_interval_ms: Number(conf.poll_interval_ms || 50),
-    connect_timeout_ms: Number(conf.connect_timeout_ms || 1500),
-    inject_mode: conf.inject_mode
-  });
   ioTerminalClient.start();
   app.once('before-quit', () => {
     try {

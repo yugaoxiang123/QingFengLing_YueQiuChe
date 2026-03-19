@@ -103,3 +103,4 @@ InitTestScene*.unity*
 .DS_Store
 /dist
 /.userData
+/WebGLBuild/*

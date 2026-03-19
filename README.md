@@ -180,7 +180,7 @@ yarn dev:unity
 1. 安装依赖（根目录与 renderer）
 2. 执行一键构建：
    ```bash
-   yarn build
+-==5天如同5
    ```
    该命令会：
    - 自动把 `version` 与 `render_version` 的 patch 位自增（例如 0.1.2 → 0.1.3）
