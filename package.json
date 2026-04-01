@@ -1,6 +1,6 @@
 {
   "name": "qfcar",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "description": "月壤车",
   "productName": "月壤车",
   "scripts": {
@@ -88,5 +88,5 @@
     "afterSign": "builder/afterSign.js"
   },
   "main": "electron/main.js",
-  "render_version": "0.1.39"
+  "render_version": "0.1.40"
 }
