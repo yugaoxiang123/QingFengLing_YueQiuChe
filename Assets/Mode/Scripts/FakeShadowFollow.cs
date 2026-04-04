@@ -8,10 +8,6 @@ public class FakeShadowFollow : MonoBehaviour
 
     Vector3 baseScale;
 
-    void Start()
-    {
-        //baseScale = transform.localScale;
-    }
 
     void LateUpdate()
     {
@@ -26,6 +22,5 @@ public class FakeShadowFollow : MonoBehaviour
         float height = car.position.y;
         float scale = 1 + height * scaleMultiplier;
 
-        //transform.localScale = baseScale * scale;
     }
 }

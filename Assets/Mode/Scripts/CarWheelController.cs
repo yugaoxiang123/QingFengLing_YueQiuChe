@@ -13,113 +13,135 @@ public class WheelInfo
 
 public class CarWheelController : MonoBehaviour
 {
-    [Header("ÒÆ¶¯ÉèÖÃ")]
+    private static readonly int ResetParamId = Animator.StringToHash("Reset");
+
+    [Header("Wheel Settings")]
     public List<WheelInfo> wheelInfos;
     public float maxMotorTorque = 500f;
     public float maxSteeringAngle = 30f;
+    public float steeringOnlyMotorInput = 1f;
+    public float steeringSensitivity = 0.8f;
 
-    [Header("¶¯»­Óë»õÎï")]
+    [Header("Animation & Cargo")]
     public Animator animator;
     public GameObject cargoObject;
+    [Tooltip("Optional. If empty, searches children. Assign when this script is not parent of CarInputUIAndAudioFeedback.")]
+    [SerializeField] private CarInputUIAndAudioFeedback inputFeedback;
 
     private bool isInLoadingZone = false;
     private bool isInUnloadingZone = false;
     private bool isHaveGoods = false;
-    private bool CanController = true; // ¿ØÖÆÊÇ·ñ¿ÉÒÔÒÆ¶¯ºÍ²Ù×÷
-
+    private bool CanController = true;
     private int ClickCount = 0;
 
-    // ÒýÓÃ¸ÕÌå
     private Rigidbody rb;
+    private bool lastResetBool;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        if (inputFeedback == null)
+            inputFeedback = GetComponentInChildren<CarInputUIAndAudioFeedback>(true);
         if (cargoObject != null) cargoObject.SetActive(false);
 
+        animator.SetBool(ResetParamId, true);
+        if (animator != null)
+            lastResetBool = animator.GetBool(ResetParamId);
+    }
+
+    void LateUpdate()
+    {
+        if (animator == null || inputFeedback == null) return;
+
+        bool reset = animator.GetBool(ResetParamId);
+        if (reset && !lastResetBool)
+            inputFeedback.PlayCargoUnloadSound();
+
+        lastResetBool = reset;
     }
 
     void Update()
     {
-        // Èç¹ûÕýÔÚ²¥·Å×°Ð¶¶¯»­£¬½ûÖ¹ºóÐø Q/E Âß¼­Ö´ÐÐ
         if (!CanController) return;
-        // »ñÈ¡ÊäÈë
+
         float motorInput = Input.GetAxis("Vertical");
         float steerInput = Input.GetAxis("Horizontal");
 
-        // --- ÐÞ¸´ 1: ÒÆ¶¯¼ì²âÂß¼­ ---
-        // Ö»ÒªÓÐÃ÷ÏÔµÄÎ»ÒÆÊäÈë£¬¾ÍÓ¦¸Ã³¢ÊÔ»Ö¸´ Idle ×´Ì¬
-        if (Mathf.Abs(motorInput) > 0.1f || Mathf.Abs(steerInput) > 0.1f)
+        if (Mathf.Abs(motorInput) <= 0.1f && Mathf.Abs(steerInput) > 0.1f)
         {
-            animator.SetBool("Reset", true);
-            ClickCount = 0; // ÒÆ¶¯Ê±ÖØÖÃµã»÷¼ÆÊý
+            motorInput = steeringOnlyMotorInput;
+            if (rb != null) rb.WakeUp();
         }
 
-        // --- ÐÞ¸´ 2: ½«ÎïÀí¸üÐÂ·ÅÔÚ CanController ÅÐ¶ÏÖ®ºó£¬»òÕßÏÞÖÆ¶¯Á¦ ---
+        if (Mathf.Abs(motorInput) > 0.1f || Mathf.Abs(steerInput) > 0.1f)
+        {
+            animator.SetBool(ResetParamId, true);
+            ClickCount = 0;
+        }
+
         float motor = (CanController) ? maxMotorTorque * motorInput : 0;
-        float steering = maxSteeringAngle * steerInput * 0.4f;//½µµÍ×ªÏòÁéÃô¶È°Ù·ÖÖ®60
+        float steering = maxSteeringAngle * steerInput * steeringSensitivity;
 
         foreach (WheelInfo wheel in wheelInfos)
         {
             if (wheel.collider == null || wheel.visualMesh == null) continue;
+
             if (wheel.steering) wheel.collider.steerAngle = steering;
             if (wheel.motor) wheel.collider.motorTorque = motor;
+
             ApplyLocalPositionToVisuals(wheel.collider, wheel.visualMesh);
         }
 
+        bool keyQ = Input.GetKeyDown(KeyCode.Q);
+        bool keyE = Input.GetKeyDown(KeyCode.E);
+        bool loadHandled = keyQ && isInLoadingZone && !isHaveGoods;
+        bool unloadHandled = keyE && isInUnloadingZone && isHaveGoods;
 
-
-        // --- Âß¼­¿ØÖÆ£º×°»õ ---
-        if (Input.GetKeyDown(KeyCode.Q) && isInLoadingZone && !isHaveGoods)
+        if (loadHandled)
         {
             HandleAction("Load", true);
+            ClickCount = 0;
         }
 
-        // --- Âß¼­¿ØÖÆ£ºÐ¶»õ ---
-        if (Input.GetKeyDown(KeyCode.E) && isInUnloadingZone && isHaveGoods)
+        if (unloadHandled)
         {
             HandleAction("Unload", false);
+            ClickCount = 0;
         }
 
-        // ´¦Àíµã»÷¼ÆÊý£¨·ÀÖ¹ÔÚÇøÓòÄÚ·´¸´°´¼üµ¼ÖÂµÄÂß¼­¿¨ËÀ£©
-        if (isInLoadingZone || isInUnloadingZone)
+        // Wrong / extra Q|E in zone (e.g. Q in unload zone): count toward reset guard only â€” never after a valid load/unload on the same frame.
+        if ((isInLoadingZone || isInUnloadingZone) && (keyQ || keyE) && !loadHandled && !unloadHandled)
         {
-            if (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E))
-            {
-                ClickCount++;
-            }
+            ClickCount++;
             if (ClickCount > 1)
-            {
-                animator.SetBool("Reset", true);
-            }
+                animator.SetBool(ResetParamId, true);
         }
     }
 
     private void HandleAction(string triggerName, bool nextGoodsState)
     {
-        // 1. Ë²¼äÇÐ¶Ï¶¯Á¦²¢É²³µ
+        if (inputFeedback != null)
+            inputFeedback.PlayCargoLoadSound();
+
         StopCarImmediately();
 
-        // 2. ¶¯»­ÓëÂß¼­¿ØÖÆ
-        animator.SetBool("Reset", false);
+        animator.SetBool(ResetParamId, false);
         animator.ResetTrigger("Load");
         animator.ResetTrigger("Unload");
         animator.SetTrigger(triggerName);
 
         isHaveGoods = nextGoodsState;
+
         StopAllCoroutines();
         StartCoroutine(WaitAndSetCargo(isHaveGoods));
     }
 
-    // Ë²¼äÉ²³µº¯Êý
     private void StopCarImmediately()
     {
         if (rb != null)
         {
-            // Èç¹û linearVelocity ±¨´í£¬¾ÍÖ±½ÓÓÃ velocity
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
-
-            // ½ø½×£ºÈç¹ûÐ¡³µ»¹ÔÚ¶¶¶¯£¬¿ÉÒÔÇ¿ÖÆÉèÖÃ¸ÕÌå½øÈëË¯Ãß
             rb.Sleep();
         }
 
@@ -128,14 +150,11 @@ public class CarWheelController : MonoBehaviour
             if (wheel.collider != null)
             {
                 wheel.collider.motorTorque = 0;
-                // É²³µÁ¦Éè´óÒ»µã£¬·ÀÖ¹ÔÚÆÂµÀÉÏÏÂ»¬
                 wheel.collider.brakeTorque = 20000f;
             }
         }
-        Debug.Log("Ð¡³µÒÑÍêÈ«¾²Ö¹²¢Ëø¶¨É²³µ");
     }
 
-    // ÔÚÐ¡³µ»Ö¸´ÒÆ¶¯»ò¶¯»­½áÊøÊ±£¬¼ÇµÃÊÍ·ÅÉ²³µÁ¦
     private void ReleaseBrake()
     {
         foreach (WheelInfo wheel in wheelInfos)
@@ -151,14 +170,12 @@ public class CarWheelController : MonoBehaviour
     {
         yield return new WaitForEndOfFrame();
 
-        // ¼ì²éÊÇ·ñ³É¹¦ÇÐ»»µ½·Ç Idle ×´Ì¬
         if (animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
         {
-            Debug.LogWarning("¶¯»­Î´ÄÜ³É¹¦ÇÐ»»£¬Çë¼ì²éÁ¬ÏßÌõ¼þ");
             yield break;
         }
 
-        CanController = false; // Ëø¶¨²Ù×÷
+        CanController = false;
 
         AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
         float animationLength = stateInfo.length;
@@ -171,21 +188,22 @@ public class CarWheelController : MonoBehaviour
         }
 
         ReleaseBrake();
-        CanController = true; // ½âËø²Ù×÷
+        CanController = true;
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("LoadingZone"))
         {
-            animator.SetBool("Reset", false);
+            if (!isHaveGoods)
+                animator.SetBool(ResetParamId, false);
             isInLoadingZone = true;
         }
         else if (other.CompareTag("UnloadingZone"))
         {
-            animator.SetBool("Reset", false);
+            if (isHaveGoods)
+                animator.SetBool(ResetParamId, false);
             isInUnloadingZone = true;
-
         }
     }
 
@@ -195,10 +213,9 @@ public class CarWheelController : MonoBehaviour
         {
             isInLoadingZone = false;
             isInUnloadingZone = false;
-            animator.SetBool("Reset", true);
             ClickCount = 0;
+            animator.SetBool(ResetParamId, true);
 
-            // Àë¿ªÇøÓòÊ±£¬Èç¹û¶¯»­»¹Ã»²¥Íê£¬Ç¿ÖÆ»Ö¸´»õÎïÏÔÒþ×´Ì¬
             if (!CanController)
             {
                 StopAllCoroutines();
@@ -210,11 +227,13 @@ public class CarWheelController : MonoBehaviour
 
     public void ApplyLocalPositionToVisuals(WheelCollider collider, Transform visualMesh)
     {
-        Vector3 pos; Quaternion rot;
+        Vector3 pos;
+        Quaternion rot;
         collider.GetWorldPose(out pos, out rot);
         visualMesh.position = pos;
         visualMesh.rotation = rot;
     }
+
     public void PulseRelay()
     {
         Debug.Log("IO_RELAY:PULSE");

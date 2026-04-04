@@ -6,6 +6,7 @@ TagManager:
   tags:
   - LoadingZone
   - UnloadingZone
+  - AirWall
   layers:
   - Default
   - TransparentFX
